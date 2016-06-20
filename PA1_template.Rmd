@@ -1,25 +1,133 @@
 ---
 title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+output: html_document
 ---
 
+#Description
+This is my solution to the first project. I've tried to make it as short and sweet as possible to make it easy for me to finish it, and for you to review it. Let me know your thoughts on the feedback!
 
-## Loading and preprocessing the data
+##Libraries
+I've used dplyr, lubridate, cowplot and ggplot2. Piece of cake (hopefully!)
+
+#Solution
+##Code for reading in the dataset and/or processing the data
+
+First comes first.
+```{r}
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(cowplot)
+```
+
+Alright, let's get down to business:
+```{r}
+data<-read.csv(file="activity.csv")
+datad<-tbl_df(data)
+```
+
+##Histogram of the total number of steps taken each day
+
+First, I grouped the data by using beautiful dplyr and the group_by function. Then, I created a summary with extra columns for the sum, mean and median (I need to say that I dislike Oxford commas).
+```{r}
+dataday<-group_by(datad,date)
+perday<-summarize(dataday,sum=sum(steps),mean=mean(steps), median=median(steps,na.rm=TRUE))
+perday
+```
+
+Pretty cool, eh? Now, we plot.
+
+```{r}
+ggplot(perday,aes(x=date,y=sum))+geom_bar(stat="identity")+labs(x = "Date", y = "Sum", title = "Total number of steps per day")+theme(axis.text.x=element_text(angle=90,size=8))
+
+```
+
+Here is something I found while trying to solve this: "If you want the heights of the bars to represent values in the data, use stat="identity" and map a value to the y aesthetic." Just in case you're wondering about that.
+
+##Mean and median number of steps taken each day
+Already solved with the perday table.
+
+##Time series plot of the average number of steps taken
+
+```{r}
+ggplot(perday,aes(x=date,y=mean,group=1))+geom_line(color="#2b8cbe")+geom_point(size=4,color="#777777")+labs(x = "Date", y = "Mean", title = "Average number of steps per day")+theme(axis.text.x=element_text(angle=90,size=8))
+```
+
+##The 5-minute interval that, on average, contains the maximum number of steps
+This uses a very simple solution. First, I checked to see if the numbers of intervals repeated during the 
+```{r}
+length(unique(datad$interval))
+```
+
+Yup, it works.
+
+So then, I group and summarize my data, and then find the maximum avarage value. 
+```{r}
+datainterval<-group_by(datad,interval)
+perinterval<-summarize(datainterval,mean=mean(steps,na.rm=TRUE))
+filter(perinterval,perinterval$mean==max(perinterval$mean,na.rm=FALSE))
+```
 
 
+It really makes me wonder how these intervals are set. If you check it out, the maximum interval goes up to 2335, which considering it's a 5-minute interval, it adds up to a cycle of almost 8 days. I'm just curious, since it doesn't seem to represent a time of the day.
 
-## What is mean total number of steps taken per day?
+##Code to describe and show a strategy for imputing missing data
+Nothing too fancy; I just substituted the values with NA with the mean of the means. So for this, first I calculated meanmean, which is simply a mean of the existing means in the table. Then, I create a copy of the dataset.
+
+```{r}
+meanmean<-mean(perday$mean,na.rm=TRUE)
+datad2<-datad
+```
+
+I found that substituting was going to take too much time to learn (I promise I will!), so for now, I just took the whole step column out as a vector called stepout, and then I substituted the NA values for the mean of means. Check it out:
+```{r}
+stepout<-datad2$steps
+stepout[is.na(stepout)] <- meanmean
+```
+
+Then, I bring it back in.
+```{r}
+datad2<-mutate(datad2,steps2=stepout)
+datad2
+```
+
+##Histogram of the total number of steps taken each day after missing values are imputed
+```{r}
+dataday2<-group_by(datad2,date)
+perday2<-summarize(dataday2,sum=sum(steps2),mean=mean(steps2), median=median(steps2))
+
+ggplot(perday2,aes(x=date,y=sum))+geom_bar(stat="identity")+labs(x = "Date", y = "Sum", title = "Total number of steps per day (corrected for missing values)")+theme(axis.text.x=element_text(angle=90,size=8))
+
+```
+
+When adding up values like this to the median, you can tell that the values change considerably, and are equal to the mean instead of zeroing as they usually do.
+```{r}
+perday2
+```
 
 
+##Panel plot comparing the average number of steps taken per 5-minute interval across weekdays and weekends
 
-## What is the average daily activity pattern?
+For this, I first add the column depending on the day of the week, and then I filter and summarize each category. Finally, I create two plots, a and b.
+```{r}
+datad2<-mutate(datad2,weekday=ifelse(wday(ymd(datad2$date))<6,"Weekday","Weekend"))
 
+datawd<-filter(datad2,weekday=="Weekday")
+intervalwd<-group_by(datawd,interval)
+summarywd<-summarize(intervalwd,sumsteps=sum(steps2))
+a<-ggplot(summarywd,aes(x=interval,y=sumsteps,group=1))+geom_line(color="#2b8cbe")+labs(x = "Interval", y = "Steps", title = "Number of steps per interval on weekdays")
 
+datawe<-filter(datad2,weekday=="Weekend")
+intervalwe<-group_by(datawe,interval)
+summarywe<-summarize(intervalwe,sumsteps=sum(steps2))
+b<-ggplot(summarywe,aes(x=interval,y=sumsteps,group=1))+geom_line(color="#d95f0e")+labs(x = "Interval", y = "Steps", title = "Number of steps per interval on weekends")
 
-## Imputing missing values
+```
 
+Now we plot!
+```{r}
+plot_grid(a, b, labels=c("A", "B"), ncol = 1, nrow = 2)
+```
 
-
-## Are there differences in activity patterns between weekdays and weekends?
+##All of the R code needed to reproduce the results (numbers, plots, etc.) in the report
+I hope that by 'code' it refers to everything I posted above! 
